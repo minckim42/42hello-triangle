@@ -6,7 +6,7 @@ string file_loader(const filesystem::path& file_name)
     ifstream ifs(file_name);
     if (!ifs.is_open())
     {
-        throw string("Error: Failed to open file: ") + file_name.string();
+        throw runtime_error("Error: Failed to open file: ") + file_name.string();
     }
     stringstream ss;
     ss << ifs.rdbuf();
@@ -16,66 +16,64 @@ string file_loader(const filesystem::path& file_name)
 ```
 
 # 셰이더 컴파일
-```c++
-GLuint complie_shader(const filesystem::path& vertex_shader_path, const filesystem::path& fragment_shader_path)
-{
-    GLuint shader_program;
+
+1. 셰이더 오브젝트 생성
+    ```c++
+    GLuint vertex_shader;
+    vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+    ```
+2. 셰이더 소스코드 
+    ```c++
+    glShaderSource(vertex_shader, 1, &shader_source_ptr, nullptr);
+    ```
+3. 셰이더 컴파일
+    ```c++
+    glCompileShader(vertex_shader);
+    ```
+4. 컴파일 성공 여부 확인
+    ```c++
+    int success;
+    glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
+    if (!success)
     {
-        GLuint vertex_shader;
-        GLuint fragment_shader;
-        // 버텍스 셰이더
-        {
-            vertex_shader = glCreateShader(GL_VERTEX_SHADER); // 셰이더 오브젝트 생성
-            string shader_source = file_loader(vertex_shader_path);
-            const char* shader_source_ptr = shader_source.data();
-            glShaderSource(vertex_shader, 1, &shader_source_ptr, nullptr); // 셰이더 소스파일 로드
-            glCompileShader(vertex_shader); // 셰이더 컴파일
-            int success;
-            glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success); // 잘 됐는지 확인
-            if (!success)
-            {
-                char log[512];
-                glGetShaderInfoLog(vertex_shader, 512, nullptr, log); // 로그 확인
-                throw string("Error: Failed to compile vertex shader:\n") + log;
-            }
-        }
-        // 프래그먼트 셰이더
-        {
-            fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-            string shader_source = file_loader(fragment_shader_path);
-            const char* shader_source_ptr = shader_source.data();
-            glShaderSource(fragment_shader, 1, &shader_source_ptr, nullptr);
-            glCompileShader(fragment_shader);
-            int success;
-            glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
-            if (!success)
-            {
-                char log[512];
-                glGetShaderInfoLog(fragment_shader, 512, nullptr, log);
-                throw string("Error: Failed to compile fragment shader:\n") + log;
-            }
-        }
-        // 셰이더 프로그램 링크
-        {
-            shader_program = glCreateProgram();
-            glAttachShader(shader_program, vertex_shader);
-            glAttachShader(shader_program, fragment_shader);
-            glLinkProgram(shader_program);
-            int success;
-            glGetProgramiv(shader_program, GL_LINK_STATUS, &success);
-            if (!success)
-            {
-                char log[512];
-                glGetProgramInfoLog(shader_program, 512, nullptr, log);
-                throw string("Error: Failed to link shader program:\n") + log;
-            }
-        }
-        glDeleteShader(vertex_shader);
-        glDeleteShader(fragment_shader);
+        char log[512];
+        glGetShaderInfoLog(vertex_shader, 512, nullptr, log);
+        throw ...
     }
-    return shader_program;
-}
-```
+    ```
+
+# 셰이더 프로그램 링크
+1. 프로그램 오브젝트 생성
+    ```c++
+    shader_program = glCreateProgram();
+    ```
+2. 프로그램에 셰이더 부착
+    ```c++
+    glAttachShader(shader_program, vertex_shader);
+    glAttachShader(shader_program, fragment_shader);
+    ```
+3. 링크
+    ```c++
+    glLinkProgram(shader_program);
+    ```
+4. 링크 성공 여부 확인
+    ```c++
+    int success;
+    glGetProgramiv(shader_program, GL_LINK_STATUS, &success);
+    if (!success)
+    {
+        char log[512];
+        glGetProgramInfoLog(shader_program, 512, nullptr, log);
+        throw runtime_error("Error: Failed to link shader program:\n") + log;
+    }
+    ```
+5. 셰이더 오브젝트 지우기
+    - 링크를 마친 후에는 셰이더 오브젝트가 필요 없으므로 지운다.
+    ```c++
+    glDeleteShader(vertex_shader);
+    glDeleteShader(fragment_shader);
+    ```
+
 
 # 버텍스 어레이
 - 버텍스버퍼와 엘러먼트버퍼 묶음
@@ -85,18 +83,62 @@ GLuint complie_shader(const filesystem::path& vertex_shader_path, const filesyst
 - 엘러먼트 버퍼
 	- 프리미티브를 이루는 버텍스의 인덱스를 담은 배열
 	- 앞에서부터 차례대로 프리미티브 하나를 구성
-- ```glGen*``` vs ```glCreate*``` : 초기화 시점의 차이
-	- ```glGen*```은 오브젝트를 곧바로 생성하지 않고, 실제로 필요할 때 생성함
-	- ```glCreate*```는 오브젝트를 곧바로 생성
 
-- ```glBind*``` : 컨텍스트에 인자로 보낸 오브젝트를 바인딩
-- ```glBufferData()``` : 데이터 전송
-```c++
-glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
-```
-종류, 버퍼 크기, 버퍼의 주소, 빈도
-- ```glVertexAttribPointer```: 버퍼의 구조
-```c++
-glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
-```
-레이아웃 번호, 요소의 개수, 자료형, 정규화여부, 스트라이드 크기, 오프셋
+# DSA vs NON-DSA
+- DSA: Direct State Access
+- ```glGen*``` vs ```glCreate*```
+- NON-DSA
+    - ```glGen*```
+    - 객체 이름만(핸들만) 생성하고, 실제 할당은 바인딩 할 때 일어남
+    - 사용하거나 수정하기 직전에 바인딩
+    ```c++
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glGenBuffers(1, &ebo);
+    
+    glBindVertexArray(vao);
+    
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
+
+                        // 로케이션
+	glEnableVertexAttribArray(0);
+                        // 로케이션, 자료형 개수, 정규화여부, 자료형 타입, 스트라이드, 오프셋
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, color));
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texture_coord));
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * indices.size(), indices.data(), GL_STATIC_DRAW);
+    ```
+
+
+- DSA
+    - ```glCreate*```
+    - 호출시 객체 할당
+    - 객체 이름을 통해 스테이트에 직접 접근
+    ```c++
+    glCreateVertexArrays(1, &vao);
+    glCreateBuffers(1, &vbo);
+    glCreateBuffers(1, &ebo);
+
+    glNamedBufferData(vbo, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
+    glNamedBufferData(ebo, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+
+    glEnableVertexArrayAttrib(vao, 0);
+    glVertexArrayAttribBinding(vao, 0, 0);
+    glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, position));
+
+    glEnableVertexArrayAttrib(vao, 1);
+    glVertexArrayAttribBinding(vao, 1, 0);
+    glVertexArrayAttribFormat(vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, color));
+
+    glEnableVertexArrayAttrib(vao, 2);
+    glVertexArrayAttribBinding(vao, 2, 0);
+    glVertexArrayAttribFormat(vao, 2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, texture_coord));
+
+    glVertexArrayVertexBuffer(vao, 0, vbo, 0, sizeof(Vertex));
+    glVertexArrayElementBuffer(vao, ebo);
+    ```

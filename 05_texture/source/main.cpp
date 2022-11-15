@@ -3,11 +3,14 @@
 #include <vector>
 #include <fstream>
 #include <sstream>
+#include <string_view>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <stb_image.h>
+
+#define DSA
 
 using namespace std;
 
@@ -24,7 +27,7 @@ string file_loader(const filesystem::path& file_name)
     ifstream ifs(file_name);
     if (!ifs.is_open())
     {
-        throw string("Error: Failed to open file: ") + file_name.string();
+        throw runtime_error("Error: Failed to open file: " + file_name.string());
     }
     stringstream ss;
     ss << ifs.rdbuf();
@@ -43,7 +46,7 @@ GLFWwindow* init_window()
 {
     if (!glfwInit())
     {
-        throw string("Error: Failed to initialize GLFW");
+        throw runtime_error("Error: Failed to initialize GLFW");
     }
     glfwWindowHint(GLFW_SAMPLES, 4); // 안티엘리어싱 x4
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // 최대버전: 그냥 glfw 버전
@@ -56,14 +59,14 @@ GLFWwindow* init_window()
     GLFWwindow* window = glfwCreateWindow(800, 600, "Hello Window", nullptr, nullptr);
     if (window == NULL)
     {
-        throw string("Error: Failed to create GLFW window");
+        throw runtime_error("Error: Failed to create GLFW window");
     }
     glfwMakeContextCurrent(window);
 
     // OpenGL 함수 포인터와 실제 함수를 매핑
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
-        throw string("Error: Failed to initialize GLAD");
+        throw runtime_error("Error: Failed to initialize GLAD");
     }
     return window;
 }
@@ -87,7 +90,7 @@ GLuint complie_shader(const filesystem::path& vertex_shader_path, const filesyst
             {
                 char log[512];
                 glGetShaderInfoLog(vertex_shader, 512, nullptr, log); // 로그 확인
-                throw string("Error: Failed to compile vertex shader:\n") + log;
+                throw runtime_error(string("Error: Failed to compile vertex shader:\n") + log);
             }
         }
         // 프래그먼트 셰이더
@@ -103,7 +106,7 @@ GLuint complie_shader(const filesystem::path& vertex_shader_path, const filesyst
             {
                 char log[512];
                 glGetShaderInfoLog(fragment_shader, 512, nullptr, log);
-                throw string("Error: Failed to compile fragment shader:\n") + log;
+                throw runtime_error(string("Error: Failed to compile fragment shader:\n") + log);
             }
         }
         // 셰이더 프로그램 링크
@@ -118,7 +121,7 @@ GLuint complie_shader(const filesystem::path& vertex_shader_path, const filesyst
             {
                 char log[512];
                 glGetProgramInfoLog(shader_program, 512, nullptr, log);
-                throw string("Error: Failed to link shader program:\n") + log;
+                throw runtime_error(string("Error: Failed to link shader program:\n") + log);
             }
         }
         glDeleteShader(vertex_shader);
@@ -127,6 +130,103 @@ GLuint complie_shader(const filesystem::path& vertex_shader_path, const filesyst
     return shader_program;
 }
 
+void set_vertex(GLuint& vao, GLuint& vbo, GLuint& ebo, vector<Vertex>& vertices, vector<unsigned int>& indices)
+{
+    #ifdef DSA
+    glCreateVertexArrays(1, &vao);
+    glCreateBuffers(1, &vbo);
+    glCreateBuffers(1, &ebo);
+
+    glNamedBufferData(vbo, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
+    glNamedBufferData(ebo, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+
+    glEnableVertexArrayAttrib(vao, 0);
+    glVertexArrayAttribBinding(vao, 0, 0);
+    glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, position));
+
+    glEnableVertexArrayAttrib(vao, 1);
+    glVertexArrayAttribBinding(vao, 1, 0);
+    glVertexArrayAttribFormat(vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, color));
+
+    glEnableVertexArrayAttrib(vao, 2);
+    glVertexArrayAttribBinding(vao, 2, 0);
+    glVertexArrayAttribFormat(vao, 2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, texture_coord));
+
+    glVertexArrayVertexBuffer(vao, 0, vbo, 0, sizeof(Vertex));
+    glVertexArrayElementBuffer(vao, ebo);
+    
+    #else
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glGenBuffers(1, &ebo);
+    
+    glBindVertexArray(vao);
+    
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, color));
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texture_coord));
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * indices.size(), indices.data(), GL_STATIC_DRAW);
+    #endif
+}
+
+void set_texture(const filesystem::path& path, GLuint& texture_id)
+{
+    // 텍스처 읽기
+    stbi_set_flip_vertically_on_load(true);
+    int width, height, channel;
+    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channel, 4);
+    if (data == nullptr)
+    {
+        throw runtime_error("Error: Failed to open image: " + path.string());
+    }
+
+    #ifdef DSA
+    glCreateTextures(GL_TEXTURE_2D, 1, &texture_id);
+    glTextureParameteri(texture_id, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTextureParameteri(texture_id, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTextureParameteri(texture_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTextureParameteri(texture_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glTextureStorage2D(texture_id, 1, GL_RGBA8, width, height);
+    glTextureSubImage2D(texture_id, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glGenerateTextureMipmap(texture_id);
+
+    #else
+    // 텍스처 버퍼 생성
+    glGenTextures(1, &texture_id);
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    
+    #endif
+
+    stbi_image_free(data);
+}
+
+void bind_texture(GLuint shader_program, GLuint texture_id, GLuint unit, string_view name)
+{
+    #ifdef DSA
+    glBindTextureUnit(unit, texture_id);
+    glUniform1i(glGetUniformLocation(shader_program, name.data()), unit);
+    #else
+    glActiveTexture(GL_TEXTURE0 + unit);
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+    glUniform1i(glGetUniformLocation(shader_program, name.data()), unit);
+    #endif
+}
 
 int main_process()
 {
@@ -135,8 +235,8 @@ int main_process()
     
     // 셰이더
     GLuint shader_program = complie_shader(
-        filesystem::path(ROOT_PATH) / "source/basic.vert", 
-        filesystem::path(ROOT_PATH) / "source/basic.frag"
+        ROOT_PATH"/source/basic.vert", 
+        ROOT_PATH"/source/basic.frag"
     );
 
     // 출력할 데이터
@@ -157,47 +257,11 @@ int main_process()
     GLuint vertex_buffer_obj;
     GLuint element_buffer_obj;
 
-    glCreateVertexArrays(1, &vertex_array_obj);
-    glCreateBuffers(1, &vertex_buffer_obj);
-    glCreateBuffers(1, &element_buffer_obj);
-    
-    glBindVertexArray(vertex_array_obj);
-    
-    glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_obj);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
+    set_vertex(vertex_array_obj, vertex_buffer_obj, element_buffer_obj, vertices, indices);
 
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, color));
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texture_coord));
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer_obj);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * indices.size(), indices.data(), GL_STATIC_DRAW);
-
-
-
-    // 텍스처
+    // 텍스처 초기화
     GLuint texture_id;
-    glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &texture_id);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    //    텍스처 로드
-    filesystem::path image_path = filesystem::path(ROOT_PATH) / "lenna.png";
-    stbi_set_flip_vertically_on_load(true);
-    int width, height, channel;
-    unsigned char* data = stbi_load(image_path.string().c_str(), &width, &height, &channel, 4);
-    if (data == nullptr)
-    {
-        throw string("Error: Failed to open image: ") + image_path.string();
-    }
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    stbi_image_free(data);
+    set_texture(ROOT_PATH"/Lenna.png", texture_id);
 
     // 렌더링 루프
     float foo = 0.0f;
@@ -217,10 +281,8 @@ int main_process()
         glUniform1f(location_foo, sinf(foo));
 
         //      텍스처 바인딩
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture_id);
-        glUniform1i(glGetUniformLocation(shader_program, "texture_id"), 0);
-
+        bind_texture(shader_program, texture_id, 0, "input_texture");
+        
         //      그리기
         glBindVertexArray(vertex_array_obj);
         glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, nullptr);

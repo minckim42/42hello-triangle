@@ -7,11 +7,23 @@ project(
 set(CMAKE_CXX_STANDARD 17)
 
 set(GLFW_DIR
-	"glfw-3.3.8"
+	"./glfw-3.3.8"
+)
+
+set(GLAD_DIR
+	"./glad"
+)
+
+set(GLM_DIR
+	"./glm"
+)
+
+set(GLAD_SRC
+	${GLAD_DIR}/src/glad.c
 )
 
 set(SOURCE_FILES
-	source/glad.c
+	${GLAD_SRC}
 	source/main.cpp
 	source/stb_image.c
 )
@@ -27,7 +39,9 @@ add_subdirectory(
 target_include_directories(HelloTriangle
 	PUBLIC
     include
+	${GLM_DIR}
 	${GLFW_DIR}/include
+	${GLAD_DIR}/include
 )
 
 target_link_libraries(HelloTriangle

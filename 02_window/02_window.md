@@ -73,7 +73,7 @@ GLFWwindow* init_window()
 {
     if (!glfwInit())
     {
-        throw string("Error: Failed to initialize GLFW");
+        throw runtime_error("Error: Failed to initialize GLFW");
     }
     glfwWindowHint(GLFW_SAMPLES, 4); // 안티엘리어싱 x4
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // 최대버전: 그냥 glfw 버전
@@ -86,14 +86,14 @@ GLFWwindow* init_window()
     GLFWwindow* window = glfwCreateWindow(800, 600, "Hello Window", nullptr, nullptr);
     if (window == NULL)
     {
-        throw string("Error: Failed to create GLFW window");
+        throw runtime_error("Error: Failed to create GLFW window");
     }
     glfwMakeContextCurrent(window);
 
     // OpenGL 함수 포인터와 실제 함수를 매핑
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
-        throw string("Error: Failed to initialize GLAD");
+        throw runtime_error("Error: Failed to initialize GLAD");
     }
     return window;
 }

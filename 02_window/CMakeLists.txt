@@ -10,11 +10,23 @@ set(CMAKE_CXX_STANDARD 17) # C++ 버전 설정
 
 # 환경변수 설정
 set(GLFW_DIR # Key
-	"glfw-3.3.8" # Value
+	"./glfw-3.3.8" # Value
+)
+
+set(GLAD_DIR
+	"./glad"
+)
+
+set(GLM_DIR
+	"./glm"
+)
+
+set(GLAD_SRC
+	${GLAD_DIR}/src/glad.c
 )
 
 set(SOURCE_FILES
-	source/glad.c
+	${GLAD_SRC}
 	source/main.cpp
 )
 
@@ -32,7 +44,9 @@ add_subdirectory(
 target_include_directories(HelloTriangle # 실행파일 이름
 	PUBLIC # 외부에서 이 빌드를 실행할 때도 인클루드에 포함되도록(PRIVATE이면 이 빌드에서만 적용됨)
     include
+	${GLM_DIR}
 	${GLFW_DIR}/include
+	${GLAD_DIR}/include
 )
 
 # 라이브러리 추가

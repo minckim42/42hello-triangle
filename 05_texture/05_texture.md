@@ -45,24 +45,31 @@ glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(
 
 # 텍스처
 1. 텍스처 객체 생성 및 바인딩
-```c++
-GLuint texture_id;
-glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &texture_id);
-```
-예전에는
-```c++
-glGenTextures(1, &texture_id);
-glBindTexture(GL_TEXTURE_2D, texture_id);
-```
+- NON-DSA
+	```c++
+	glGenTextures(1, &texture_id);
+	glBindTexture(GL_TEXTURE_2D, texture_id);
+	```
+- DSA
+	```c++
+	glCreateTextures(GL_TEXTURE_2D, 1, &texture_id);
+	```
 
 2. 래핑/필터링 방법 설정
-```c++
-glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
-glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-```
-
+- NON-DSA
+	```c++
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	```
+- DSA
+	```c++
+	glTextureParameteri(texture_id, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTextureParameteri(texture_id, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTextureParameteri(texture_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTextureParameteri(texture_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	```
 - ```GL_TEXTURE_WRAP_S```: x축
 - ```GL_TEXTURE_WRAP_T```: y축
 - ```GL_REPEAT```: 이미지를 바둑판처럼 반복(기본값)
@@ -80,19 +87,39 @@ glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 - ```GL_LINEAR_MIPMAP_LINEAR```: 
 
 3. 텍스처 데이터를 디바이스에 전송
-```c++
-glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-```
-2D텍스처, 레벨, 디바이스에서 쓸 색 포맷, 너비, 높이, 경계, 원본의 색 포맷, 원본의 픽셀 타입, 데이터포인터
+- NON-DSA
+	```c++
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	```
+	- 2D텍스처, 레벨, 디바이스에서 쓸 색 포맷, 너비, 높이, 경계, 원본의 색 포맷, 원본의 픽셀 타입, 데이터포인터
+- DSA
+	```c++
+	glTextureStorage2D(texture_id, 1, GL_RGBA8, width, height); // 버퍼 생성
+    glTextureSubImage2D(texture_id, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data); // 데이터 업로드
+	```
+	- 텍스처오브젝트, 만들 레벨의 수(밉맵), 디바이스에서 쓸 색 포맷, 너비, 높이
+		- 포맷의 경우, RGB 3채널인 데이터를 쓴다면 바이트 정렬 문제가 발생할 수 있음. 데이터 패키징 설정을 해야 함
+	- 텍스처오브젝트, 설정할 레벨, x시작점, y시작점, 너비, 높이, 원본의 색 포맷, 원본의 픽셀 타입, 데이터포인터
 
 4. 밉맵 생성
-```c++
-glGenerateMipmap(GL_TEXTURE_2D);
-```
+- NON-DSA
+	```c++
+	glGenerateMipmap(GL_TEXTURE_2D);
+	```
+- DSA
+	```c++
+	glGenerateTextureMipmap(texture_id);
+	```
 
-5. 랜더링 루프에서
-```c++
-glActiveTexture(GL_TEXTURE0);
-glBindTexture(GL_TEXTURE_2D, texture_id);
-glUniform1i(glGetUniformLocation(shader_program, "texture_id"), 0);
-```
+5. 바인딩
+- NON-DSA
+	```c++
+    glActiveTexture(GL_TEXTURE0 + unit);
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+    glUniform1i(glGetUniformLocation(shader_program, name.data()), unit);
+	```
+- DSA
+	```c++
+	glBindTextureUnit(unit, texture_id);
+    glUniform1i(glGetUniformLocation(shader_program, name.data()), unit);
+	```
